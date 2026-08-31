@@ -1,0 +1,21 @@
+# MitoFinder is optional. It is used only by 06_mitogenome.sh, which produces a
+# full annotated mitogenome as a by-product of reads you have already assembled.
+# It is NOT on the COI path: 03_assemble.sh recovers COI on its own.
+#
+# It stays in a separate environment because its bioconda recipe is built only
+# against Python 2.7 ("skip: True  # [not py2k]") and pulls its own pinned
+# blast, spades and idba. Mixing that into the main environment makes the solve
+# fail or silently downgrade tools the rest of the pipeline depends on.
+#
+#   conda env create -f environment_mitofinder.yml
+#   conda activate coi_mitofinder
+#   bash 06_mitogenome.sh
+#
+name: coi_mitofinder
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - mitofinder
+  - megahit
+  - seqkit

@@ -1,0 +1,31 @@
+# Data, references and outputs are reproducible from the scripts plus the
+# accessions recorded in the README. They are also large. Never commit them.
+data/
+ref/
+results/
+
+# Sequence and alignment files, wherever they land
+*.bam
+*.bai
+*.fasta
+*.fa
+*.fna
+*.faa
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.gb
+*.vcf
+*.vcf.gz
+*.vcf.gz.csi
+
+# Logs and run artifacts
+*.log
+*.efetch.log
+*.part
+
+# Environment and editor cruft
+__pycache__/
+*.pyc
+.DS_Store

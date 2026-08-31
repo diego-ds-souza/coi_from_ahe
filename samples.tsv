@@ -1,0 +1,12 @@
+# Sample sheet. Tab separated. Paths are relative to the project root, or absolute.
+# These point at the RAW reads; 01_trim.sh does the trimming.
+#
+#
+# Columns: sample, r1, r2
+sample	r1	r2
+FMNHINS4811537	data/raw_data/FMNHINS4811537_R1.fastq.gz	data/raw_data/FMNHINS4811537_R2.fastq.gz
+USNMENT01160338	data/raw_data/USNMENT01160338_R1.fastq.gz	data/raw_data/USNMENT01160338_R2.fastq.gz
+USNMENT01160339	data/raw_data/USNMENT01160339_R1.fastq.gz	data/raw_data/USNMENT01160339_R2.fastq.gz
+USNMENT01160347	data/raw_data/USNMENT01160347_R1.fastq.gz	data/raw_data/USNMENT01160347_R2.fastq.gz
+#
+# Add more samples here as needed.

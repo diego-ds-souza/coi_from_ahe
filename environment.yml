@@ -1,0 +1,26 @@
+# Deliberately unpinned. Let conda resolve for the platform, then freeze:
+#
+#   conda env create -f environment.yml
+#   conda activate coi_from_ahe
+#   conda env export --no-builds > environment.lock.yml
+#
+# environment.lock.yml is the file to cite in a methods section and to reuse
+# for an exact rerun. environment.yml stays portable.
+name: coi_from_ahe
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - fastp                 # adapter and quality trimming, duplication report
+  - bwa                   # short-read mapping onto the reference mitogenome
+  - samtools
+  - bcftools              # reference-guided consensus and allele-fraction checks
+  - spades                # de novo assembler, METHOD=spades
+  - megahit               # low-memory de novo assembler, METHOD=megahit
+  - blast                 # tblastn and blastn location of COX1 in contigs
+  - seqkit                # FASTA subsetting, primer location, renaming
+  - seqtk
+  - mafft                 # route A vs route B comparison
+  - entrez-direct         # reference retrieval from NCBI
+  - python=3.10
+  - biopython             # GenBank parsing, genetic-code table 5 translation
