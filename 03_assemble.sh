@@ -61,6 +61,9 @@ case "$ASM_INPUT" in
   baited|full) ;;
   *) die "ASM_INPUT must be baited or full, got: ${ASM_INPUT}" ;;
 esac
+require_tools tblastn blastn makeblastdb seqkit
+[[ "$METHOD" == "spades"  ]] && require_tools spades.py
+[[ "$METHOD" == "megahit" ]] && require_tools megahit
 
 samples=$(read_samples "$SAMPLES")
 mkdir -p "$OUTDIR"
@@ -119,19 +122,21 @@ locate_cox1() {
     | seqkit replace -p '^.*$' -r "${sample}_COI_routeA" > "$outfile"
 }
 
-n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
-i=0
-while IFS=$'\t' read -r sample _ _; do
-  i=$((i + 1))
+# process_sample <sample>
+# Runs the chosen assembler and locates COX1 for one sample. This is an
+# ordinary function, not a subshell by itself: the loop below invokes it as
+# "( process_sample "$sample" )" so that a failing command, or a die() inside
+# it (e.g. no COX1 hit), exits only that subshell. set -e still applies inside
+# it, so any step failing aborts the rest of this sample's work.
+process_sample() {
+  local sample="$1" out r1 r2 asmdir contigs
   out="${OUTDIR}/${sample}_COI_routeA.fasta"
 
   case "$METHOD" in
 
     spades)
-      require_tools spades.py tblastn blastn makeblastdb seqkit
       read -r r1 r2 < <(assembly_input "$sample")
       asmdir="${OUTDIR}/${sample}_spades"
-      echo "[${i}/${n}] spades ${sample} (${ASM_INPUT} reads)"
       # shellcheck disable=SC2086  # SPADES_OPTS is intentionally word split
       spades.py -1 "$r1" -2 "$r2" -o "$asmdir" \
         -t "$THREADS" -m "$MEM_GB" -k 21,33,55,77 $SPADES_OPTS \
@@ -143,12 +148,10 @@ while IFS=$'\t' read -r sample _ _; do
       ;;
 
     megahit)
-      require_tools megahit tblastn blastn makeblastdb seqkit
       read -r r1 r2 < <(assembly_input "$sample")
       asmdir="${OUTDIR}/${sample}_megahit"
       # megahit refuses to write into an existing directory.
       rm -rf "$asmdir"
-      echo "[${i}/${n}] megahit ${sample} (${ASM_INPUT} reads)"
       megahit -1 "$r1" -2 "$r2" -o "$asmdir" \
         -t "$THREADS" -m $(( MEM_GB * 1024 * 1024 * 1024 )) \
         --min-contig-len "$MIN_CONTIG" \
@@ -162,9 +165,45 @@ while IFS=$'\t' read -r sample _ _; do
   esac
 
   printf '  %s: %s bp\n' "$sample" "$(seqkit fx2tab -nl "$out" | cut -f2)"
+}
+
+FAILLOG="${OUTDIR}/failed_samples.tsv"
+printf 'sample\tstage\terror_log\n' > "$FAILLOG"
+nfail=0
+
+n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
+i=0
+while IFS=$'\t' read -r sample _ _; do
+  i=$((i + 1))
+  out="${OUTDIR}/${sample}_COI_routeA.fasta"
+
+  if [[ -s "$out" ]]; then
+    echo "[${i}/${n}] ${METHOD} ${sample}: already assembled ($(seqkit fx2tab -nl "$out" | cut -f2) bp), skipping"
+    continue
+  fi
+
+  echo "[${i}/${n}] ${METHOD} ${sample} (${ASM_INPUT} reads)"
+  errlog="${OUTDIR}/${sample}.assemble_error.log"
+
+  if ( process_sample "$sample" ) 2> "$errlog"; then
+    rm -f "$errlog"
+  else
+    nfail=$((nfail + 1))
+    printf '%s\tassemble\t%s\n' "$sample" "$errlog" >> "$FAILLOG"
+    msg "  ${sample}: FAILED, continuing to the next sample. Detail:"
+    sed 's/^/    /' "$errlog" >&2
+  fi
 done <<< "$samples"
 
 echo
+if [[ "$nfail" -gt 0 ]]; then
+  echo "WARNING: ${nfail} of ${n} sample(s) failed; see ${FAILLOG} and each"
+  echo "sample's <sample>.assemble_error.log for the reason and what to retry."
+  echo "Rerunning this script will retry only those samples; the rest are"
+  echo "already assembled. 04_consensus.sh is unaffected (it does not read 03's"
+  echo "output); 05_validate.sh will skip any sample missing its route A fasta"
+  echo "rather than stopping."
+fi
 echo "wrote ${OUTDIR}/<sample>_COI_routeA.fasta"
 echo "A recovered length far from about 1530 bp means the HSP span is wrong;"
 echo "check ${OUTDIR}/<sample>.cox1_hits.tsv before trusting it."
