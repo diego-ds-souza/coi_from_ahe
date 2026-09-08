@@ -45,13 +45,15 @@ mkdir -p "$OUTDIR"
 STATS="${OUTDIR}/consensus_stats.tsv"
 printf 'sample\tcox1_length\tmasked_sites\tmasked_fraction\talt_calls\n' > "$STATS"
 
-n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
-i=0
-while IFS=$'\t' read -r sample _ _; do
-  i=$((i + 1))
+# process_sample <sample>
+# Builds the reference-guided consensus and cuts out COX1 for one sample. An
+# ordinary function, invoked by the loop below as "( process_sample "$sample" )"
+# so that a failing command, or a die() inside it (e.g. a missing bam), exits
+# only that subshell rather than the whole run.
+process_sample() {
+  local sample="$1" bam out len masked frac alts row
   bam="${BAITDIR}/${sample}.mito.bam"
   require_files "$bam"
-  echo "[${i}/${n}] consensus ${sample}"
 
   # 1) Pile up and call over the whole mitogenome. Duplicates are excluded by
   #    the mpileup default read filter.
@@ -84,10 +86,46 @@ while IFS=$'\t' read -r sample _ _; do
   alts=$(bcftools view -H -v snps -i 'GT="alt"' \
            -r "$(cat "${REFDIR}/cox1.region")" "${OUTDIR}/${sample}.calls.vcf.gz" | wc -l | tr -d ' ')
 
-  printf '%s\t%s\t%s\t%s\t%s\n' "$sample" "$len" "$masked" "$frac" "$alts" >> "$STATS"
+  row=$(printf '%s\t%s\t%s\t%s\t%s' "$sample" "$len" "$masked" "$frac" "$alts")
+  printf '%s\n' "$row" >> "$STATS"
+  printf '%s\n' "$row" > "${OUTDIR}/${sample}.consensus_stats.line"
+}
+
+FAILLOG="${OUTDIR}/failed_samples.tsv"
+printf 'sample\tstage\terror_log\n' > "$FAILLOG"
+nfail=0
+
+n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
+i=0
+while IFS=$'\t' read -r sample _ _; do
+  i=$((i + 1))
+
+  if [[ -s "${OUTDIR}/${sample}_COI_routeB.fasta" && -s "${OUTDIR}/${sample}.consensus_stats.line" ]]; then
+    echo "[${i}/${n}] consensus ${sample}: already done, skipping"
+    cat "${OUTDIR}/${sample}.consensus_stats.line" >> "$STATS"
+    continue
+  fi
+
+  echo "[${i}/${n}] consensus ${sample}"
+  errlog="${OUTDIR}/${sample}.consensus_error.log"
+
+  if ( process_sample "$sample" ) 2> "$errlog"; then
+    rm -f "$errlog"
+  else
+    nfail=$((nfail + 1))
+    printf '%s\tconsensus\t%s\n' "$sample" "$errlog" >> "$FAILLOG"
+    msg "  ${sample}: FAILED, continuing to the next sample. Detail:"
+    sed 's/^/    /' "$errlog" >&2
+  fi
 done <<< "$samples"
 
 echo
 column -t "$STATS" 2>/dev/null || cat "$STATS"
 echo
+if [[ "$nfail" -gt 0 ]]; then
+  echo "WARNING: ${nfail} of ${n} sample(s) failed; see ${FAILLOG} and each"
+  echo "sample's <sample>.consensus_error.log for the reason. Rerunning this"
+  echo "script will retry only those samples; the rest are already done."
+  echo "05_validate.sh will skip these samples in turn rather than stopping."
+fi
 echo "wrote ${OUTDIR}/<sample>_COI_routeB.fasta"
