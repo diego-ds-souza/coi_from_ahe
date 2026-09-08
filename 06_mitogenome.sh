@@ -61,10 +61,14 @@ mkdir -p "$OUTDIR"
 STATS="${OUTDIR}/mitogenome_stats.tsv"
 printf 'sample\tcontig_length\tgenes_annotated\tcox1_recovered\tcox1_vs_route_a\n' > "$STATS"
 
-n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
-i=0
-while IFS=$'\t' read -r sample _ _; do
-  i=$((i + 1))
+# process_sample <sample>
+# Runs MitoFinder for one sample, collects its mitogenome/gene/COI outputs,
+# and appends its mitogenome_stats.tsv row. An ordinary function, invoked by
+# the loop below as "( process_sample "$sample" )" so that a failing command,
+# or a die() inside it, exits only that subshell rather than the whole run.
+process_sample() {
+  local sample="$1" r1 r2 r1_abs r2_abs rundir contig_candidates genes
+  local contig_len n_genes cox1_len ident contig contig_len_bp cand len gbk routeA row PY
   read -r r1 r2 < <(trimmed_reads "$TRIMDIR" "$sample")
   r1_abs=$(readlink -f "$r1"); r2_abs=$(readlink -f "$r2")
 
@@ -72,7 +76,6 @@ while IFS=$'\t' read -r sample _ _; do
   rundir="${OUTDIR}/${sample}_mitofinder"
   mkdir -p "$rundir"
 
-  echo "[${i}/${n}] mitofinder ${sample}"
   ( cd "$rundir" && mitofinder \
       -j "$sample" \
       -1 "$r1_abs" -2 "$r2_abs" \
@@ -141,13 +144,48 @@ while IFS=$'\t' read -r sample _ _; do
     fi
   fi
 
-  printf '%s\t%s\t%s\t%s\t%s\n' \
-    "$sample" "$contig_len" "$n_genes" "$cox1_len" "${ident:-NA}" >> "$STATS"
+  row=$(printf '%s\t%s\t%s\t%s\t%s' "$sample" "$contig_len" "$n_genes" "$cox1_len" "${ident:-NA}")
+  printf '%s\n' "$row" >> "$STATS"
+  printf '%s\n' "$row" > "${OUTDIR}/${sample}.mitogenome_stats.line"
+}
+
+FAILLOG="${OUTDIR}/failed_samples.tsv"
+printf 'sample\tstage\terror_log\n' > "$FAILLOG"
+nfail=0
+
+n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
+i=0
+while IFS=$'\t' read -r sample _ _; do
+  i=$((i + 1))
+
+  if [[ -s "${OUTDIR}/${sample}.mitogenome_stats.line" ]]; then
+    echo "[${i}/${n}] mitofinder ${sample}: already done, skipping"
+    cat "${OUTDIR}/${sample}.mitogenome_stats.line" >> "$STATS"
+    continue
+  fi
+
+  echo "[${i}/${n}] mitofinder ${sample}"
+  errlog="${OUTDIR}/${sample}.mitofinder_error.log"
+
+  if ( process_sample "$sample" ) 2> "$errlog"; then
+    rm -f "$errlog"
+  else
+    nfail=$((nfail + 1))
+    printf '%s\tmitofinder\t%s\n' "$sample" "$errlog" >> "$FAILLOG"
+    msg "  ${sample}: FAILED, continuing to the next sample. Detail:"
+    sed 's/^/    /' "$errlog" >&2
+  fi
 done <<< "$samples"
 
 echo
 column -t "$STATS" 2>/dev/null || cat "$STATS"
 echo
+if [[ "$nfail" -gt 0 ]]; then
+  echo "WARNING: ${nfail} of ${n} sample(s) failed; see ${FAILLOG} and each"
+  echo "sample's <sample>.mitofinder_error.log for the reason. Rerunning this"
+  echo "script will retry only those samples; the rest are already done."
+  echo
+fi
 echo "wrote ${OUTDIR}/<sample>_mitogenome.fasta and .gb"
 echo
 echo "A complete beetle mitogenome is roughly 15 to 20 kb with 37 genes."
