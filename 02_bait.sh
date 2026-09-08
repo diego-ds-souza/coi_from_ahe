@@ -56,16 +56,18 @@ STATS="${OUTDIR}/bait_stats.tsv"
 printf 'sample\ttotal_reads\tmito_mapped\tmito_mapped_nodup\tmito_fraction\tdup_rate\tcox1_mean_depth\tcox1_median_depth\tcox1_frac_ge_%s\n' \
   "$MIN_DEPTH" > "$STATS"
 
-n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
-i=0
-while IFS=$'\t' read -r sample _ _; do
-  i=$((i + 1))
-  read -r r1 r2 < <(trimmed_reads "$TRIMDIR" "$sample")
+# process_sample <sample>
+# Maps one sample, appends its bait_stats.tsv row, and extracts baited read
+# pairs. An ordinary function, invoked by the loop below as
+# "( process_sample "$sample" )" so that a failing command exits only that
+# subshell rather than the whole run.
+process_sample() {
+  local sample="$1" bam r1 r2 total mapped mapped_nodup frac dup dmean dmed dfrac row
   bam="${OUTDIR}/${sample}.mito.bam"
+  read -r r1 r2 < <(trimmed_reads "$TRIMDIR" "$sample")
 
   # 1) Map, fix mate information, sort, mark duplicates. Kept as one stream so
   #    that no intermediate BAM is written.
-  echo "[${i}/${n}] bwa mem ${sample}"
   # shellcheck disable=SC2086  # BWA_OPTS is intentionally word split
   bwa mem $BWA_OPTS -t "$THREADS" "$REF" "$r1" "$r2" 2> "${OUTDIR}/${sample}.bwa.log" \
     | samtools fixmate -u -m - - \
@@ -83,8 +85,10 @@ while IFS=$'\t' read -r sample _ _; do
 
   # 3) Depth across COX1 only, counting zero-coverage sites.
   read -r dmean dmed dfrac < <(depth_stats "$bam" "$REGION" "$MIN_DEPTH")
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$sample" "$total" "$mapped" "$mapped_nodup" "$frac" "$dup" "$dmean" "$dmed" "$dfrac" >> "$STATS"
+  row=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+    "$sample" "$total" "$mapped" "$mapped_nodup" "$frac" "$dup" "$dmean" "$dmed" "$dfrac")
+  printf '%s\n' "$row" >> "$STATS"
+  printf '%s\n' "$row" > "${OUTDIR}/${sample}.bait_stats.line"
 
   # 4) Baited read pairs for the SPAdes fallback: duplicates excluded, pairs
   #    kept when at least one mate maps.
@@ -94,9 +98,45 @@ while IFS=$'\t' read -r sample _ _; do
         -1 "${OUTDIR}/${sample}.bait_R1.fq.gz" \
         -2 "${OUTDIR}/${sample}.bait_R2.fq.gz" \
         -0 /dev/null -s /dev/null - 2> "${OUTDIR}/${sample}.fastq.log"
+}
+
+FAILLOG="${OUTDIR}/failed_samples.tsv"
+printf 'sample\tstage\terror_log\n' > "$FAILLOG"
+nfail=0
+
+n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
+i=0
+while IFS=$'\t' read -r sample _ _; do
+  i=$((i + 1))
+
+  if [[ -s "${OUTDIR}/${sample}.mito.bam" && -s "${OUTDIR}/${sample}.mito.bam.bai" \
+        && -s "${OUTDIR}/${sample}.bait_R1.fq.gz" && -s "${OUTDIR}/${sample}.bait_R2.fq.gz" \
+        && -s "${OUTDIR}/${sample}.bait_stats.line" ]]; then
+    echo "[${i}/${n}] bwa mem ${sample}: already baited, skipping"
+    cat "${OUTDIR}/${sample}.bait_stats.line" >> "$STATS"
+    continue
+  fi
+
+  echo "[${i}/${n}] bwa mem ${sample}"
+  errlog="${OUTDIR}/${sample}.bait_error.log"
+
+  if ( process_sample "$sample" ) 2> "$errlog"; then
+    rm -f "$errlog"
+  else
+    nfail=$((nfail + 1))
+    printf '%s\tbait\t%s\n' "$sample" "$errlog" >> "$FAILLOG"
+    msg "  ${sample}: FAILED, continuing to the next sample. Detail:"
+    sed 's/^/    /' "$errlog" >&2
+  fi
 done <<< "$samples"
 
 echo
 column -t "$STATS" 2>/dev/null || cat "$STATS"
 echo
+if [[ "$nfail" -gt 0 ]]; then
+  echo "WARNING: ${nfail} of ${n} sample(s) failed; see ${FAILLOG} and each"
+  echo "sample's <sample>.bait_error.log for the reason. Rerunning this script"
+  echo "will retry only those samples; the rest are already baited."
+  echo
+fi
 echo "wrote ${STATS}, ${OUTDIR}/<sample>.mito.bam and baited read pairs"
