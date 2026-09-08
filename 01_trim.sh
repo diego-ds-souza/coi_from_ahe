@@ -36,11 +36,12 @@ mkdir -p "$OUTDIR"
 # once for the whole pipeline does not have to be special cased by the caller.
 FASTP_THREADS=$(( THREADS > 16 ? 16 : THREADS ))
 
-n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
-i=0
-while IFS=$'\t' read -r sample r1 r2; do
-  i=$((i + 1))
-  echo "[${i}/${n}] fastp ${sample}"
+# process_sample <sample> <r1> <r2>
+# Runs fastp for one sample. An ordinary function, invoked by the loop below
+# as "( process_sample "$sample" "$r1" "$r2" )" so that a failing command
+# exits only that subshell rather than the whole run.
+process_sample() {
+  local sample="$1" r1="$2" r2="$3"
   require_files "$r1" "$r2"
 
   fastp \
@@ -54,8 +55,44 @@ while IFS=$'\t' read -r sample r1 r2; do
     --thread "$FASTP_THREADS" \
     --json "${OUTDIR}/${sample}.fastp.json" \
     --html "${OUTDIR}/${sample}.fastp.html" \
-    2> "${OUTDIR}/${sample}.fastp.log"
+    2> "${OUTDIR}/${sample}.fastp.log" \
+    || die "fastp failed for ${sample}; see ${OUTDIR}/${sample}.fastp.log"
+}
+
+FAILLOG="${OUTDIR}/failed_samples.tsv"
+printf 'sample\tstage\terror_log\n' > "$FAILLOG"
+nfail=0
+
+n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
+i=0
+while IFS=$'\t' read -r sample r1 r2; do
+  i=$((i + 1))
+
+  if [[ -s "${OUTDIR}/${sample}_R1.fq.gz" && -s "${OUTDIR}/${sample}_R2.fq.gz" \
+        && -s "${OUTDIR}/${sample}.fastp.json" ]]; then
+    echo "[${i}/${n}] fastp ${sample}: already trimmed, skipping"
+    continue
+  fi
+
+  echo "[${i}/${n}] fastp ${sample}"
+  errlog="${OUTDIR}/${sample}.trim_error.log"
+
+  if ( process_sample "$sample" "$r1" "$r2" ) 2> "$errlog"; then
+    rm -f "$errlog"
+  else
+    nfail=$((nfail + 1))
+    printf '%s\ttrim\t%s\n' "$sample" "$errlog" >> "$FAILLOG"
+    msg "  ${sample}: FAILED, continuing to the next sample. Detail:"
+    sed 's/^/    /' "$errlog" >&2
+  fi
 done <<< "$samples"
+
+if [[ "$nfail" -gt 0 ]]; then
+  echo
+  echo "WARNING: ${nfail} of ${n} sample(s) failed; see ${FAILLOG} and each"
+  echo "sample's <sample>.trim_error.log for the reason. Rerunning this script"
+  echo "will retry only those samples; the rest are already trimmed."
+fi
 
 # Duplication rate is the number to read first: above roughly 60 percent the
 # library has few unique molecules and de novo assembly of the off-target
