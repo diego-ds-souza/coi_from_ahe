@@ -62,11 +62,14 @@ SUMMARY="${OUTDIR}/validation_summary.tsv"
 printf 'sample\tcoi_length\tmean_depth\tmedian_depth\tfrac_ge_%s\tcompeting_allele_sites\tinternal_stops\torf_verdict\tidentity_A_vs_B\tfolmer_bp\n' \
   "$MIN_DEPTH" > "$SUMMARY"
 
-n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
-i=0
-while IFS=$'\t' read -r sample _ _; do
-  i=$((i + 1))
-  echo "[${i}/${n}] validate ${sample}"
+# process_sample <sample>
+# Validates one sample. An ordinary function, invoked by the loop below as
+# "( process_sample "$sample" )" so that a failing command, or a die() inside
+# it (most commonly a missing route A or route B fasta from an earlier
+# failed sample), exits only that subshell rather than the whole run.
+process_sample() {
+  local sample="$1" routeA routeB work r1 r2 contig coi_len dmean dmed dfrac
+  local competing stops verdict ident folmer_bp range row
 
   routeA="${DENOVODIR}/${sample}_COI_routeA.fasta"
   routeB="${CONSDIR}/${sample}_COI_routeB.fasta"
@@ -141,14 +144,51 @@ while IFS=$'\t' read -r sample _ _; do
 
   seqkit replace -p '^.*$' -r "${sample}_COI" "$routeA" > "${FINALDIR}/${sample}_COI.fasta"
 
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  row=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
     "$sample" "$coi_len" "$dmean" "$dmed" "$dfrac" "$competing" \
-    "$stops" "$verdict" "$ident" "$folmer_bp" >> "$SUMMARY"
+    "$stops" "$verdict" "$ident" "$folmer_bp")
+  printf '%s\n' "$row" >> "$SUMMARY"
+  printf '%s\n' "$row" > "${work}/validate_stats.line"
+}
+
+FAILLOG="${OUTDIR}/failed_samples.tsv"
+printf 'sample\tstage\terror_log\n' > "$FAILLOG"
+nfail=0
+
+n=$(printf '%s\n' "$samples" | wc -l | tr -d ' ')
+i=0
+while IFS=$'\t' read -r sample _ _; do
+  i=$((i + 1))
+
+  if [[ -s "${FINALDIR}/${sample}_COI.fasta" && -s "${OUTDIR}/${sample}/validate_stats.line" ]]; then
+    echo "[${i}/${n}] validate ${sample}: already done, skipping"
+    cat "${OUTDIR}/${sample}/validate_stats.line" >> "$SUMMARY"
+    continue
+  fi
+
+  echo "[${i}/${n}] validate ${sample}"
+  errlog="${OUTDIR}/${sample}.validate_error.log"
+
+  if ( process_sample "$sample" ) 2> "$errlog"; then
+    rm -f "$errlog"
+  else
+    nfail=$((nfail + 1))
+    printf '%s\tvalidate\t%s\n' "$sample" "$errlog" >> "$FAILLOG"
+    msg "  ${sample}: FAILED, continuing to the next sample. Detail:"
+    sed 's/^/    /' "$errlog" >&2
+  fi
 done <<< "$samples"
 
 echo
 column -t "$SUMMARY" 2>/dev/null || cat "$SUMMARY"
 echo
+if [[ "$nfail" -gt 0 ]]; then
+  echo "WARNING: ${nfail} of ${n} sample(s) failed validation; see ${FAILLOG} and"
+  echo "each sample's <sample>.validate_error.log for the reason. They are absent"
+  echo "from ${SUMMARY} and from ${FINALDIR}. Rerunning this script will retry"
+  echo "only those samples; the rest are already done."
+  echo
+fi
 echo "wrote ${FINALDIR}/<sample>_COI.fasta and ${SUMMARY}"
 echo
 echo "How to read the summary:"
