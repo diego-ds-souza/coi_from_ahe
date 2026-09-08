@@ -30,7 +30,7 @@
 #
 # Run from the project root:
 #   conda activate coi_from_ahe
-#   MITO_ACC=NC_059702 bash 00_reference.sh
+#   MITO_ACC=NC_038191 bash 00_reference.sh   # NC_038191 Cicindela anchoralis, https://www.ncbi.nlm.nih.gov/nuccore/NC_038191.1
 #   MITO_ACC=MH404140 ANNOT_ACC=NC_059702 bash 00_reference.sh   # unannotated
 #
 set -euo pipefail
