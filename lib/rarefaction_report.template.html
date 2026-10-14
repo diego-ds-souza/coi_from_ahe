@@ -1,0 +1,750 @@
+<title>Tiger Beetle Mitogenome Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
+<style>
+/* Layout: one reading column for prose, full-width panels for charts and the table; summary before detail. */
+:root {
+  --bg: #f7f9f9;
+  --surface: #ffffff;
+  --fg: #121719;
+  --fg-2: #4a5458;
+  --fg-3: #737d81;
+  --rule: #dde3e4;
+  --grid: #e9edee;
+  --accent: #0f6a72;
+  --accent-soft: #e2f0f1;
+  --s-complete: #2a78d6;
+  --s-partial: #eb6834;
+  --s-none: #1baf7a;
+  --st-good: #0ca30c;
+  --st-warn: #fab219;
+  --st-crit: #d03b3b;
+  --st-serious: #ec835a;
+  --st-none: #8a9396;
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.5rem;
+  --step-3: 2.125rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111517; --surface: #181d1f; --fg: #eef1f1; --fg-2: #b9c2c4; --fg-3: #8d979a;
+    --rule: #2c3437; --grid: #232a2d; --accent: #5fc0c8; --accent-soft: #1b3236;
+    --s-complete: #3987e5; --s-partial: #d95926; --s-none: #199e70; --st-none: #8d979a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111517; --surface: #181d1f; --fg: #eef1f1; --fg-2: #b9c2c4; --fg-3: #8d979a;
+  --rule: #2c3437; --grid: #232a2d; --accent: #5fc0c8; --accent-soft: #1b3236;
+  --s-complete: #3987e5; --s-partial: #d95926; --s-none: #199e70; --st-none: #8d979a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font: 400 var(--step-0)/1.55 var(--font-body); }
+.wrap { max-width: 72rem; margin: 0 auto; padding-inline: 16px; padding-block: 2.5rem 4rem; display: grid; gap: 2.75rem; }
+@media (min-width: 720px) { .wrap { padding-inline: 32px; } }
+h1, h2 { font-family: var(--font-display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: var(--step-3); line-height: 1.15; }
+h2 { font-size: var(--step-2); line-height: 1.2; }
+p { margin: 0; max-width: 65ch; }
+.eyebrow { font: 500 var(--step--1)/1.3 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); }
+.prose { display: grid; gap: 0.75rem; }
+.muted { color: var(--fg-2); }
+.answer { font-size: var(--step-1); line-height: 1.5; max-width: 62ch; }
+.small { font-size: var(--step--1); }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+header { display: grid; gap: 1rem; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; align-items: center; padding: 1rem 1.25rem; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; }
+.controls label { font-weight: 500; }
+select { font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--rule); border-radius: 6px; padding: 0.35rem 0.6rem; max-width: 100%; }
+select:focus-visible, button:focus-visible, th:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.target-readout { color: var(--fg-2); }
+.target-readout strong { color: var(--fg); font-family: var(--font-data); font-weight: 500; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: 0.75rem; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem; display: grid; gap: 0.3rem; align-content: start; }
+.tile .k { font-size: var(--step--1); color: var(--fg-2); display: flex; gap: 0.4rem; align-items: center; }
+.tile .v { font: 500 var(--step-2)/1.1 var(--font-data); font-variant-numeric: tabular-nums; }
+.tile .s { font-size: var(--step--1); color: var(--fg-3); }
+
+.dot { width: 0.65rem; height: 0.65rem; border-radius: 50%; display: inline-block; flex: none; }
+.pill { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--step--1); white-space: nowrap; }
+.pill .ic { font-family: var(--font-data); font-weight: 500; width: 1.1rem; height: 1.1rem; border-radius: 50%; display: inline-grid; place-items: center; font-size: 0.7rem; color: #fff; }
+.v-enough .ic { background: var(--st-good); }
+.v-more .ic { background: var(--st-warn); color: #1c1600; }
+.v-exhausted .ic { background: var(--st-crit); }
+.v-nodata .ic { background: var(--st-none); }
+.v-failed .ic { background: var(--st-serious); color: #1c0d00; }
+
+section { display: grid; gap: 1.25rem; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1.25rem; display: grid; gap: 1rem; min-width: 0; }
+.chart { position: relative; width: 100%; min-width: 0; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--fg-2); font: 400 11px var(--font-body); }
+.chart .axis-title { fill: var(--fg-2); font-size: 12px; font-weight: 500; }
+.chart .grid line { stroke: var(--grid); }
+.chart .baseline { stroke: var(--fg-3); }
+.chart .lbl { fill: var(--fg); font-size: 12px; font-weight: 500; }
+.legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; font-size: var(--step--1); color: var(--fg-2); }
+.legend span { display: inline-flex; gap: 0.4rem; align-items: center; }
+.legend .ln { width: 1.4rem; height: 0; border-top: 2px solid var(--fg); display: inline-block; }
+.legend .ln.dash { border-top-style: dashed; }
+.legend .ln.dot2 { border-top-style: dotted; }
+.tip { position: absolute; pointer-events: none; background: var(--surface); color: var(--fg); border: 1px solid var(--rule); border-radius: 6px; padding: 0.45rem 0.6rem; font-size: var(--step--1); line-height: 1.4; box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); white-space: nowrap; z-index: 2; }
+.tip b { font-weight: 600; }
+
+.explorer-head { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; justify-content: space-between; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 0.6rem 1rem; }
+.facts div { display: grid; gap: 0.1rem; min-width: 0; }
+.facts dt { font-size: var(--step--1); color: var(--fg-3); }
+.facts dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.note { font-size: var(--step--1); color: var(--fg-2); border-left: 3px solid var(--st-warn); padding-left: 0.75rem; }
+.note:empty { display: none; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.chip { font: 500 var(--step--1)/1 var(--font-body); color: var(--fg-2); background: var(--surface); border: 1px solid var(--rule); border-radius: 999px; padding: 0.45rem 0.8rem; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); border-color: var(--accent); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { padding: 0.5rem 0.7rem; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--surface); color: var(--fg-2); font-weight: 500; cursor: pointer; user-select: none; border-bottom: 1px solid var(--rule); }
+thead th[aria-sort="ascending"]::after { content: " \2191"; }
+thead th[aria-sort="descending"]::after { content: " \2193"; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody tr.sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+td.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.flag { color: var(--fg-3); font-size: 0.7rem; margin-left: 0.25rem; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.75rem 1.5rem; }
+.stats div { display: grid; gap: 0.15rem; min-width: 0; }
+.stats .v { font: 500 var(--step-1)/1.2 var(--font-data); font-variant-numeric: tabular-nums; }
+.stats .k { font-size: var(--step--1); color: var(--fg-2); }
+.method { display: grid; gap: 1rem; }
+.method ol { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.6rem; max-width: 70ch; }
+.method code { font-family: var(--font-data); font-size: 0.85em; background: var(--accent-soft); padding: 0.05rem 0.3rem; border-radius: 4px; }
+.caveats { display: grid; gap: 0.5rem; max-width: 70ch; padding-left: 1.25rem; margin: 0; }
+@media (prefers-reduced-motion: no-preference) { tbody tr { transition: background 120ms; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Cicindelinae · AHE off-target reads · rarefaction</div>
+    <h1>How much sequencing does each specimen need for a complete mitogenome?</h1>
+    <div class="prose">
+      <p class="answer" id="answer"></p>
+      <p class="muted" id="lede"></p>
+    </div>
+  </header>
+
+  <div class="controls" role="group" aria-label="Planning target">
+    <label for="targetP">Plan for a chance of a complete mitogenome of</label>
+    <select id="targetP">
+      <option value="0.5">50%</option>
+      <option value="0.8">80%</option>
+      <option value="0.9" selected>90%</option>
+      <option value="0.95">95%</option>
+    </select>
+    <span class="target-readout" id="targetReadout"></span>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <section aria-labelledby="h-cal">
+    <div class="prose">
+      <div class="eyebrow">Step 1 · Calibration</div>
+      <h2 id="h-cal">What COX1 depth gave a complete mitogenome</h2>
+      <p class="muted" id="calText"></p>
+    </div>
+    <div class="panel">
+      <div class="legend" id="calLegend"></div>
+      <div class="chart" id="calChart"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-ceil">
+    <div class="prose">
+      <div class="eyebrow">Step 2 · Library ceilings</div>
+      <h2 id="h-ceil">Most libraries cannot reach the target at any sequencing depth</h2>
+      <p class="muted" id="ceilText"></p>
+    </div>
+    <div class="panel">
+      <div class="stats" id="newLib"></div>
+      <div class="legend" id="ceilLegend"></div>
+      <div class="chart" id="ceilChart"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-exp">
+    <div class="prose">
+      <div class="eyebrow">Step 3 · One specimen</div>
+      <h2 id="h-exp">Rarefaction curve and projection</h2>
+      <p class="muted">Dots are the library subsampled to 0.5% to 100% of its reads. The line is the fitted saturation curve, extrapolated. Where it flattens, the library has run out of unique mitochondrial molecules, and more sequencing of that library adds only duplicates.</p>
+    </div>
+    <div class="panel">
+      <div class="explorer-head">
+        <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap">
+          <label for="specimen" style="font-weight:500">Specimen</label>
+          <select id="specimen"></select>
+        </div>
+        <span id="specVerdict"></span>
+      </div>
+      <dl class="facts" id="facts"></dl>
+      <p class="note" id="specNote"></p>
+      <div class="legend">
+        <span><span class="dot" style="background:var(--accent)"></span>Observed subsample</span>
+        <span><span class="ln"></span>Fitted curve</span>
+        <span><span class="ln dash"></span>Target depth</span>
+        <span><span class="ln dot2"></span>Library ceiling</span>
+      </div>
+      <div class="chart" id="expChart"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-tab">
+    <div class="prose">
+      <div class="eyebrow">Step 4 · All specimens</div>
+      <h2 id="h-tab">Sequencing to order</h2>
+      <p class="muted">Raw read pairs (2 × 150 bp) on top of what each library already has. Click a row to see its curve above. Click a column heading to sort.</p>
+    </div>
+    <div class="filters" id="filters" role="group" aria-label="Filter by verdict"></div>
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead><tr>
+          <th data-k="sample" class="l" tabindex="0">Specimen</th>
+          <th data-k="outcome" class="l" tabindex="0">MitoFinder now</th>
+          <th data-k="nowM" tabindex="0">Now (M pairs)</th>
+          <th data-k="mitoPct" tabindex="0">Mito reads %</th>
+          <th data-k="dupPct" tabindex="0">Duplicates %</th>
+          <th data-k="depth" tabindex="0">Depth now</th>
+          <th data-k="ceil" tabindex="0">Ceiling</th>
+          <th data-k="addM" tabindex="0">Add (M pairs)</th>
+          <th data-k="addG" tabindex="0">Add (Gbp)</th>
+          <th data-k="fold" tabindex="0">× current</th>
+          <th data-k="vrank" class="l" tabindex="0">Verdict</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="small muted">Depth is the mean unique (deduplicated) read depth across COX1. Ceiling is the depth this library would reach with unlimited sequencing. Unmarked specimens were measured against their own mitogenome. <span class="flag">coi</span> marks depth measured against the specimen's COI alone. <span class="flag">short</span> marks a COI under 500 bp, where depth is less reliable. <span class="flag">ref</span> marks depth measured against the reference mitogenome, a lower bound.</p>
+  </section>
+
+  <section class="method" aria-labelledby="h-m">
+    <div class="prose">
+      <div class="eyebrow">Method</div>
+      <h2 id="h-m">How the numbers were made</h2>
+    </div>
+    <ol>
+      <li>Each trimmed library was mapped to its own MitoFinder contigs where one of them carries COX1, otherwise to its own COI from the pipeline. Only specimens with neither use the shared reference. </li>
+      <li>Reads aligned over less than 80% of their length were dropped. Under the permissive settings of the pipeline's reference mapping, most reads in the COX1 window are short partial hits from elsewhere in the genome. In the specimen checked in detail, they tripled the apparent depth.</li>
+      <li>The mapped reads were subsampled to 0.5%, 1%, 2%, 5%, 10%, 20%, 35%, 50%, 75% and 100% of the library. Duplicates were re-marked within each subsample, and the mean unique depth across COX1 was measured (<code>07_rarefaction.sh</code>).</li>
+      <li>Unique against total mitochondrial reads was fitted with a gamma-Poisson saturation curve, which estimates how many distinct mitochondrial molecules each library holds (<code>lib/rarefaction_model.py</code>).</li>
+      <li>MitoFinder's result for every specimen (step 06: complete means all 13 protein-coding genes and both rRNAs) was regressed on unique COX1 depth with a logistic model. The depth for the chosen chance of success is the target.</li>
+      <li>For each specimen, the target depth was run back through its fitted curve to the mitochondrial reads needed, then divided by the library's mitochondrial fraction and fastp retention to give raw read pairs.</li>
+    </ol>
+    <div class="prose"><p><strong>Read the estimates with these limits in mind</strong></p></div>
+    <ul class="caveats small muted">
+      <li>COX1 depth stands in for depth across the whole mitogenome. Mitochondrial genes share one copy number, but the AT-rich control region usually has lower coverage.</li>
+      <li>The calibration is observational: it says what depth complete assemblies had, across these libraries. Subsampling a few complete specimens and rerunning MitoFinder would test the threshold directly.</li>
+      <li>Projections assume more sequencing of the same library. A library past its ceiling needs a new library, or a re-amplification of the existing one, which this model cannot predict.</li>
+      <li>Where a library showed almost no duplicates, its ceiling is not bounded by the data and the projection is optimistic.</li>
+    </ul>
+  </section>
+</div>
+
+<script id="report-data" type="application/json">__REPORT_DATA__</script>
+<script>
+(function () {
+  "use strict";
+  var DATA = JSON.parse(document.getElementById("report-data").textContent);
+  var S = DATA.samples;
+  var CAL = DATA.calibration;
+  var OUTCOME = {
+    complete: { label: "Complete", color: "var(--s-complete)" },
+    partial: { label: "Partial", color: "var(--s-partial)" },
+    none: { label: "Nothing", color: "var(--s-none)" }
+  };
+  var VERDICT = {
+    complete: { label: "Complete already", ic: "✓", cls: "v-enough", rank: 0 },
+    more: { label: "Sequence more", ic: "+", cls: "v-more", rank: 1 },
+    exhausted: { label: "New library needed", ic: "!", cls: "v-exhausted", rank: 2 },
+    failed: { label: "Depth reached, assembly failed", ic: "?", cls: "v-failed", rank: 3 },
+    nodata: { label: "No mito reads", ic: "–", cls: "v-nodata", rank: 4 }
+  };
+  var NS = "http://www.w3.org/2000/svg";
+
+  // ---------- model (mirrors lib/rarefaction_model.py) ----------
+  function depthAtP(p) { return Math.pow(10, (Math.log(p / (1 - p)) - CAL.complete.b0) / CAL.complete.b1); }
+  function pAtDepth(d) { return 1 / (1 + Math.exp(-(CAL.complete.b0 + CAL.complete.b1 * Math.log10(d)))); }
+  function gpUnique(n, c, k) { return c * (1 - Math.pow(1 + n / (k * c), -k)); }
+  function gpReadsFor(u, c, k) { return u >= c ? Infinity : k * c * (Math.pow(1 - u / c, -1 / k) - 1); }
+
+  function project(d, target) {
+    var r = d.depth_per_unique, out = { target: target };
+    if (!(d.mito_unique > 0 && r > 0 && d.mito_fraction > 0 && d.C)) {
+      out.v = d.outcome === "complete" ? "complete" : "nodata"; out.need = Infinity; out.add = Infinity; out.ceil = 0; return out;
+    }
+    out.ceil = d.C * r;
+    var n = gpReadsFor(target / r, d.C, d.k);
+    out.need = n / d.mito_fraction / d.retention / 2;
+    out.add = isFinite(out.need) ? Math.max(out.need - d.raw_pairs_now, 0) : Infinity;
+    out.addG = isFinite(out.add) ? out.add * d.bp_per_pair / 1e9 : Infinity;
+    out.fold = isFinite(out.need) ? out.need / d.raw_pairs_now : Infinity;
+    if (d.outcome === "complete") out.v = "complete";
+    else if (d.mean_depth >= target) out.v = "failed";
+    else if (!isFinite(out.need) || out.need > CAL.max_fold * d.raw_pairs_now) out.v = "exhausted";
+    else out.v = "more";
+    return out;
+  }
+
+  // ---------- formatting ----------
+  function fmtM(x) { if (!isFinite(x)) return "—"; var m = x / 1e6; return m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2); }
+  function fmtG(x) { if (!isFinite(x)) return "—"; return x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2); }
+  function fmtD(x) { if (x == null || !isFinite(x)) return "—"; return x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2); }
+  function fmtPct(x, dp) { return x == null || !isFinite(x) ? "—" : (100 * x).toFixed(dp == null ? 1 : dp); }
+  function fmtFold(x) { if (!isFinite(x)) return "—"; return x < 1 ? "≤ 1" : x >= 10 ? x.toFixed(0) : x.toFixed(1); }
+  function pill(v) { var o = VERDICT[v]; return '<span class="pill ' + o.cls + '"><span class="ic" aria-hidden="true">' + o.ic + "</span>" + o.label + "</span>"; }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  // ---------- svg helpers ----------
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var a in attrs) e.setAttribute(a, attrs[a]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function logTicks(lo, hi) {
+    var t = [], a = Math.floor(Math.log10(lo)), b = Math.ceil(Math.log10(hi));
+    for (var e = a; e <= b; e++) { var v = Math.pow(10, e); if (v >= lo * 0.999 && v <= hi * 1.001) t.push(v); }
+    return t;
+  }
+  function fmtTick(v) {
+    if (v >= 1e9) return v / 1e9 + "G";
+    if (v >= 1e6) return v / 1e6 + "M";
+    if (v >= 1e3) return v / 1e3 + "k";
+    return String(+v.toPrecision(3));
+  }
+  function tipper(host) {
+    var t = document.createElement("div"); t.className = "tip"; t.hidden = true; host.appendChild(t);
+    return {
+      show: function (html, x, y) {
+        t.innerHTML = html; t.hidden = false;
+        var w = host.clientWidth, tw = t.offsetWidth, th = t.offsetHeight;
+        var left = x + 14; if (left + tw > w) left = x - tw - 14; if (left < 0) left = 0;
+        var top = y - th - 10; if (top < 0) top = y + 14;
+        t.style.left = left + "px"; t.style.top = top + "px";
+      },
+      hide: function () { t.hidden = true; }
+    };
+  }
+
+  var state = { p: 0.9, sel: null, filter: "all", sortK: "vrank", sortDir: 1 };
+  try { var savedP = localStorage.getItem("mitoPlannerP"); if (savedP) state.p = +savedP; } catch (e) {}
+  document.getElementById("targetP").value = String(state.p);
+  if (document.getElementById("targetP").value !== String(state.p)) { state.p = 0.9; document.getElementById("targetP").value = "0.9"; }
+
+  // ---------- header + tiles ----------
+  function renderSummary(proj, target) {
+    var n = S.length, c = { complete: 0, more: 0, exhausted: 0, failed: 0, nodata: 0 }, addG = 0, addM = 0, folds = [];
+    S.forEach(function (d, i) {
+      var p = proj[i]; c[p.v]++;
+      if (p.v === "more") { addG += p.addG; addM += p.add; folds.push(p.fold); }
+    });
+    folds.sort(function (a, b) { return a - b; });
+    var medFold = folds.length ? folds[Math.floor(folds.length / 2)] : NaN;
+    var nOwn = S.filter(function (d) { return d.ref_source !== "reference"; }).length;
+    document.getElementById("lede").textContent =
+      n + " specimens were rarefied: their libraries were subsampled step by step and the mitochondrial coverage measured at each step. " +
+      "The planner converts the COX1 depth that complete mitogenomes needed into the raw read pairs each library still needs. " +
+      "It also flags the libraries where more sequencing cannot help. " +
+      nOwn + " of the " + n + " were measured against their own mitogenome or COI, and the rest against the reference.";
+    document.getElementById("targetReadout").innerHTML =
+      "Target: <strong>" + fmtD(target) + "×</strong> mean unique COX1 depth";
+    var tiles = [
+      { k: "complete", v: c.complete, s: "MitoFinder already gave all 13 protein-coding genes and both rRNAs" },
+      { k: "more", v: c.more, s: c.more ? "median " + fmtFold(medFold) + "× their current sequencing" : "none at this target" },
+      { k: "exhausted", v: c.exhausted, s: "cannot reach the target within " + CAL.max_fold + "× their current sequencing" },
+      { k: "failed", v: c.failed, s: "at or above the target depth, so something other than coverage is wrong" },
+      { k: "nodata", v: c.nodata, s: "no measurable mitochondrial coverage" }
+    ];
+    var h = tiles.map(function (t) {
+      return '<div class="tile"><div class="k">' + pill(t.k) +
+        '</div><div class="v">' + t.v + '</div><div class="s">' + t.s + "</div></div>";
+    }).join("");
+    h += '<div class="tile"><div class="k">Extra sequencing for the “sequence more” group</div><div class="v">' + fmtG(addG) +
+      ' Gbp</div><div class="s">' + fmtM(addM) + " M raw read pairs in total</div></div>";
+    document.getElementById("tiles").innerHTML = h;
+  }
+
+  // ---------- calibration chart ----------
+  function renderCal(target) {
+    var host = document.getElementById("calChart"); host.innerHTML = "";
+    var W = Math.max(host.clientWidth, 320), H = W < 560 ? 300 : 340;
+    var m = { l: 52, r: 18, t: 16, b: 46 };
+    var cal = S.filter(function (d) { return d.in_calibration; });
+    var xs = cal.map(function (d) { return d.mean_depth; });
+    var lo = Math.pow(10, Math.floor(Math.log10(Math.min.apply(null, xs.concat([target]))))),
+        hi = Math.pow(10, Math.ceil(Math.log10(Math.max.apply(null, xs.concat([target])))));
+    var X = function (v) { return m.l + (Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (W - m.l - m.r); };
+    var Y = function (p) { return m.t + (1 - p) * (H - m.t - m.b); };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Probability of a complete mitogenome against unique COX1 depth" }, host);
+    var g = el("g", { class: "grid" }, svg);
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (p) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(p), y2: Y(p) }, g);
+      el("text", { x: m.l - 8, y: Y(p) + 4, "text-anchor": "end" }, svg).textContent = Math.round(p * 100) + "%";
+    });
+    logTicks(lo, hi).forEach(function (v) {
+      el("text", { x: X(v), y: H - m.b + 18, "text-anchor": "middle" }, svg).textContent = fmtTick(v) + "×";
+    });
+    el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0) }, svg);
+    el("text", { class: "axis-title", x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = "Mean unique COX1 depth (log scale)";
+    el("text", { class: "axis-title", x: 12, y: (m.t + H - m.b) / 2, "text-anchor": "middle", transform: "rotate(-90 12 " + ((m.t + H - m.b) / 2) + ")" }, svg).textContent = "P(complete mitogenome)";
+
+    // target marker
+    el("line", { x1: X(target), x2: X(target), y1: m.t, y2: Y(0), stroke: "var(--fg)", "stroke-dasharray": "4 4", "stroke-width": 1.5 }, svg);
+    var tl = el("text", { class: "lbl", x: X(target) + 6, y: m.t + 12 }, svg); tl.textContent = "target " + fmtD(target) + "×";
+    if (X(target) > W - 110) { tl.setAttribute("x", X(target) - 6); tl.setAttribute("text-anchor", "end"); }
+
+    // fitted curve
+    var dpath = "", steps = 120;
+    for (var i = 0; i <= steps; i++) {
+      var v = Math.pow(10, Math.log10(lo) + i / steps * (Math.log10(hi) - Math.log10(lo)));
+      dpath += (i ? "L" : "M") + X(v).toFixed(1) + "," + Y(pAtDepth(v)).toFixed(1);
+    }
+    el("path", { d: dpath, fill: "none", stroke: "var(--fg)", "stroke-width": 2 }, svg);
+
+    // points: complete at 1, others at 0, deterministic jitter
+    var tip = tipper(host);
+    cal.forEach(function (d, i) {
+      var base = d.outcome === "complete" ? 1 : 0;
+      var j = ((i * 37) % 17) / 17 - 0.5;
+      var yy = Y(base) + (base ? 1 : -1) * (6 + Math.abs(j) * 18);
+      var c = el("circle", { cx: X(d.mean_depth), cy: yy, r: 4.5, fill: OUTCOME[d.outcome].color, stroke: "var(--surface)", "stroke-width": 1.5, tabindex: 0 }, svg);
+      var show = function (ev) {
+        var b = host.getBoundingClientRect(), x = (ev.clientX != null ? ev.clientX - b.left : X(d.mean_depth) * b.width / W), y = (ev.clientY != null ? ev.clientY - b.top : yy * b.height / H);
+        tip.show("<b>" + esc(d.sample) + "</b><br>" + OUTCOME[d.outcome].label + " (" + d.genes_annotated + " of 15 genes)<br>Depth " + fmtD(d.mean_depth) + "×", x, y);
+      };
+      c.addEventListener("mousemove", show); c.addEventListener("focus", show);
+      c.addEventListener("mouseleave", tip.hide); c.addEventListener("blur", tip.hide);
+      c.addEventListener("click", function () { select(d.sample, true); });
+    });
+
+    var leg = document.getElementById("calLegend");
+    leg.innerHTML = ["complete", "partial", "none"].map(function (k) {
+      var n = cal.filter(function (d) { return d.outcome === k; }).length;
+      return '<span><span class="dot" style="background:' + OUTCOME[k].color + '"></span>' + OUTCOME[k].label + " (" + n + ")</span>";
+    }).join("") + '<span><span class="ln"></span>Logistic fit</span>';
+
+    var p50 = depthAtP(0.5);
+    document.getElementById("calText").textContent =
+      "Each dot is a specimen measured against its own mitogenome or COI (n = " + cal.length + "). Complete mitogenomes sit at the top and the rest at the bottom. " +
+      "The fitted chance of a complete mitogenome is 50% at about " + fmtD(p50) + "× unique depth and " + Math.round(state.p * 100) + "% at " + fmtD(target) + "×, the planning target. The curve rises slowly because a few libraries assembled completely from under 25× while others failed above 50×.";
+  }
+
+  // ---------- library ceilings ----------
+  function quantile(a, q) {
+    if (!a.length) return NaN;
+    var b = a.slice().sort(function (x, y) { return x - y; }), i = (b.length - 1) * q, lo = Math.floor(i), hi = Math.ceil(i);
+    return b[lo] + (b[hi] - b[lo]) * (i - lo);
+  }
+  function renderCeil(target) {
+    var cal = S.filter(function (d) { return d.in_calibration && d.mito_unique > 0 && d.C; });
+    var need = [], reach = 0;
+    cal.forEach(function (d) {
+      var n = gpReadsFor(target / d.depth_per_unique, d.C, d.k);
+      if (isFinite(n)) { reach++; need.push(n / d.mito_fraction / d.retention / 2); }
+    });
+    var bpp = quantile(cal.map(function (d) { return d.bp_per_pair; }), 0.5);
+    var med = quantile(need, 0.5), q1 = quantile(need, 0.25), q3 = quantile(need, 0.75);
+    var ceilC = cal.filter(function (d) { return d.outcome === "complete"; }).map(function (d) { return d.C * d.depth_per_unique; });
+    var ceilN = cal.filter(function (d) { return d.outcome !== "complete"; }).map(function (d) { return d.C * d.depth_per_unique; });
+    var nowN = cal.filter(function (d) { return d.outcome !== "complete"; }).map(function (d) { return d.raw_pairs_now; });
+    var dupN = cal.filter(function (d) { return d.outcome !== "complete"; }).map(function (d) { return d.dup_rate; });
+    document.getElementById("newLib").innerHTML = [
+      ["Libraries able to reach " + fmtD(target) + "×", reach + " of " + cal.length],
+      ["Raw read pairs to reach it, median", fmtM(med) + " M (≈ " + fmtG(med * bpp / 1e9) + " Gbp)"],
+      ["Middle half of those libraries", fmtM(q1) + "–" + fmtM(q3) + " M pairs"],
+      ["Ceiling, complete vs not complete", fmtD(quantile(ceilC, 0.5)) + "× vs " + fmtD(quantile(ceilN, 0.5)) + "×"]
+    ].map(function (r) { return '<div><span class="k">' + r[0] + '</span><span class="v">' + r[1] + "</span></div>"; }).join("");
+    var nNot = cal.filter(function (d) { return d.outcome !== "complete"; });
+    var nNotReach = nNot.filter(function (d) { return !isFinite(gpReadsFor(target / d.depth_per_unique, d.C, d.k)); }).length;
+    document.getElementById("answer").textContent =
+      "About " + fmtM(med) + " M raw read pairs (≈ " + fmtG(med * bpp / 1e9) + " Gbp) per specimen is enough, if the library holds enough distinct mitochondrial molecules. " +
+      "Most of the libraries that failed do not. Of the " + nNot.length + " failed libraries measured against their own sequence, " + nNotReach + " cannot reach the target however deeply they are sequenced. " +
+      "Those specimens need a new library, not more sequencing.";
+    document.getElementById("ceilText").textContent =
+      "The ceiling is the COX1 depth a library would reach if sequenced without limit, set by how many distinct mitochondrial molecules it holds. " +
+      "Libraries that gave a complete mitogenome have a median ceiling of " + fmtD(quantile(ceilC, 0.5)) + "×. The rest have a median of " + fmtD(quantile(ceilN, 0.5)) + "×, " +
+      "although they were already sequenced to a median of " + fmtM(quantile(nowN, 0.5)) + " M read pairs with " + Math.round(100 * quantile(dupN, 0.5)) + "% duplicates. " +
+      "For them, more sequencing returns duplicates. A library with the complexity of the good ones needs about " + fmtM(med) + " M raw read pairs to reach the target.";
+
+    var host = document.getElementById("ceilChart"); host.innerHTML = "";
+    var W = Math.max(host.clientWidth, 320), H = 210, m = { l: 112, r: 18, t: 14, b: 46 };
+    if (W < 480) m.l = 86;
+    var all = cal.map(function (d) { return d.C * d.depth_per_unique; }).concat([target]);
+    var lo = Math.pow(10, Math.floor(Math.log10(Math.max(Math.min.apply(null, all), 0.1)))), hi = Math.pow(10, Math.ceil(Math.log10(Math.max.apply(null, all))));
+    var X = function (v) { return m.l + (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (W - m.l - m.r); };
+    var rowsY = { complete: m.t + 38, other: m.t + 112 };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Library ceiling depth for each specimen, complete against not complete" }, host);
+    var g = el("g", { class: "grid" }, svg);
+    logTicks(lo, hi).forEach(function (v) {
+      el("line", { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b }, g);
+      el("text", { x: X(v), y: H - m.b + 18, "text-anchor": "middle" }, svg).textContent = fmtTick(v) + "×";
+    });
+    el("text", { class: "axis-title", x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = "Library ceiling: COX1 depth at unlimited sequencing (log scale)";
+    el("text", { class: "lbl", x: m.l - 10, y: rowsY.complete + 4, "text-anchor": "end" }, svg).textContent = "Complete";
+    el("text", { class: "lbl", x: m.l - 10, y: rowsY.other + 4, "text-anchor": "end" }, svg).textContent = "Not complete";
+    el("line", { x1: X(target), x2: X(target), y1: m.t, y2: H - m.b, stroke: "var(--fg)", "stroke-dasharray": "6 4", "stroke-width": 1.5 }, svg);
+    var tl = el("text", { class: "lbl", x: X(target) + 6, y: m.t + 10 }, svg); tl.textContent = "target " + fmtD(target) + "×";
+    if (X(target) > W - 110) { tl.setAttribute("x", X(target) - 6); tl.setAttribute("text-anchor", "end"); }
+    var tip = tipper(host);
+    cal.forEach(function (d, i) {
+      var row = d.outcome === "complete" ? rowsY.complete : rowsY.other;
+      var j = (((i * 53) % 23) / 23 - 0.5) * 44;
+      var cx = X(d.C * d.depth_per_unique), cy = row + j;
+      var c = el("circle", { cx: cx, cy: cy, r: 4.5, fill: OUTCOME[d.outcome].color, stroke: "var(--surface)", "stroke-width": 1.5, tabindex: 0 }, svg);
+      var show = function (ev) {
+        var b = host.getBoundingClientRect(), x = ev.clientX != null ? ev.clientX - b.left : cx * b.width / W, y = ev.clientY != null ? ev.clientY - b.top : cy * b.height / H;
+        tip.show("<b>" + esc(d.sample) + "</b><br>" + OUTCOME[d.outcome].label + " (" + d.genes_annotated + "/15)<br>Ceiling " + (d.saturated ? "" : "≥ ") + fmtD(d.C * d.depth_per_unique) + "×, now " + fmtD(d.mean_depth) + "×", x, y);
+      };
+      c.addEventListener("mousemove", show); c.addEventListener("focus", show);
+      c.addEventListener("mouseleave", tip.hide); c.addEventListener("blur", tip.hide);
+      c.addEventListener("click", function () { select(d.sample, true); });
+    });
+    document.getElementById("ceilLegend").innerHTML = ["complete", "partial", "none"].map(function (k) {
+      return '<span><span class="dot" style="background:' + OUTCOME[k].color + '"></span>' + OUTCOME[k].label + "</span>";
+    }).join("") + '<span><span class="ln dash"></span>Target depth</span>';
+  }
+
+  // ---------- explorer ----------
+  function renderExplorer(d, p) {
+    var host = document.getElementById("expChart"); host.innerHTML = "";
+    document.getElementById("specVerdict").innerHTML = pill(p.v);
+    var facts = [
+      ["Sequenced now", fmtM(d.raw_pairs_now) + " M pairs"],
+      ["Mitochondrial reads", fmtPct(d.mito_fraction, 3) + "%"],
+      ["Duplicates", fmtPct(d.dup_rate, 0) + "%"],
+      ["Depth now", fmtD(d.mean_depth) + "×"],
+      ["Library ceiling", p.v === "nodata" ? "—" : (d.saturated ? "" : "≥ ") + fmtD(p.ceil) + "×"],
+      ["Needed in total", isFinite(p.need) ? fmtM(p.need) + " M pairs" : "—"],
+      ["MitoFinder now", OUTCOME[d.outcome].label + " (" + d.genes_annotated + "/15)"]
+    ];
+    document.getElementById("facts").innerHTML = facts.map(function (f) { return "<div><dt>" + f[0] + "</dt><dd>" + f[1] + "</dd></div>"; }).join("");
+    var notes = [];
+    if (d.ref_source === "reference") notes.push("No COI or mitogenome was recovered for this specimen, so its depth was measured against the divergent reference and is a lower bound. The real requirement may be smaller.");
+    else if (d.ref_source === "own_coi" && (d.coi_bp || 0) < CAL.min_coi_bp) notes.push("Depth was measured against this specimen's COI, which is only " + d.coi_bp + " bp, so the estimate is less reliable.");
+    else if (d.ref_source === "own_coi") notes.push("No mitogenome contig carried COX1, so depth was measured against this specimen's COI alone.");
+    if (p.v === "failed") notes.push("This library already has more COX1 depth than the target, yet MitoFinder did not produce a complete mitogenome. More sequencing is unlikely to help. Check for contamination, a NUMT, or an assembly problem first.");
+    if (p.v !== "nodata" && !d.saturated) notes.push("The library showed almost no duplicates, so its ceiling is not bounded by the data.");
+    if (p.v === "exhausted" && !isFinite(p.need)) notes.push("The fitted curve levels off at " + fmtD(p.ceil) + "×, below the " + fmtD(p.target) + "× target. More sequencing of this library adds duplicates, not coverage.");
+    else if (p.v === "exhausted") notes.push("Reaching " + fmtD(p.target) + "× would take " + fmtFold(p.fold) + "× the current sequencing, past the " + CAL.max_fold + "× limit used here. A new library is the practical route.");
+    document.getElementById("specNote").textContent = notes.join(" ");
+
+    var W = Math.max(host.clientWidth, 320), H = W < 560 ? 300 : 360;
+    var m = { l: 52, r: 18, t: 18, b: 46 };
+    var pts = d.points.filter(function (q) { return q.raw_pairs > 0; });
+    var curve = d.curve || [];
+    var xmin = Math.min.apply(null, pts.map(function (q) { return q.raw_pairs; }).concat([1e4]));
+    var xmax = Math.max.apply(null, curve.map(function (q) { return q.raw_pairs; }).concat([d.raw_pairs_now * 2]));
+    if (isFinite(p.need)) xmax = Math.max(xmax, p.need * 1.3);
+    var lo = Math.pow(10, Math.floor(Math.log10(xmin))), hi = Math.pow(10, Math.ceil(Math.log10(xmax)));
+    var ymax = Math.max(p.target * 1.25, d.mean_depth * 1.15, (isFinite(p.ceil) && p.ceil < p.target * 3 ? p.ceil * 1.1 : 0),
+      Math.max.apply(null, pts.map(function (q) { return q.mean_depth; })), 1);
+    var X = function (v) { return m.l + (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (W - m.l - m.r); };
+    var Y = function (v) { return m.t + (1 - Math.min(v, ymax) / ymax) * (H - m.t - m.b); };
+    var svg = el("svg", { viewBox: "0 0 " + W + " " + H, role: "img", "aria-label": "Rarefaction curve for " + d.sample }, host);
+    var clip = el("clipPath", { id: "plotclip" }, el("defs", {}, svg));
+    el("rect", { x: m.l, y: m.t - 2, width: W - m.l - m.r, height: H - m.t - m.b + 2 }, clip);
+
+    var g = el("g", { class: "grid" }, svg);
+    var yt = niceTicks(ymax, 5);
+    yt.forEach(function (v) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v) }, g);
+      el("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end" }, svg).textContent = fmtTick(v) + "×";
+    });
+    logTicks(lo, hi).forEach(function (v) {
+      el("line", { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b }, g);
+      el("text", { x: X(v), y: H - m.b + 18, "text-anchor": "middle" }, svg).textContent = fmtTick(v);
+    });
+    el("line", { class: "baseline", x1: m.l, x2: W - m.r, y1: Y(0), y2: Y(0) }, svg);
+    el("text", { class: "axis-title", x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle" }, svg).textContent = "Raw read pairs sequenced (log scale)";
+    el("text", { class: "axis-title", x: 12, y: (m.t + H - m.b) / 2, "text-anchor": "middle", transform: "rotate(-90 12 " + ((m.t + H - m.b) / 2) + ")" }, svg).textContent = "Mean unique COX1 depth";
+
+    var plot = el("g", { "clip-path": "url(#plotclip)" }, svg);
+    // ceiling
+    if (p.v !== "nodata" && p.ceil < ymax) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(p.ceil), y2: Y(p.ceil), stroke: "var(--fg-2)", "stroke-dasharray": "1.5 4", "stroke-width": 2, "stroke-linecap": "round" }, plot);
+    }
+    // target
+    el("line", { x1: m.l, x2: W - m.r, y1: Y(p.target), y2: Y(p.target), stroke: "var(--fg)", "stroke-dasharray": "6 4", "stroke-width": 1.5 }, plot);
+    var tl = el("text", { class: "lbl", x: W - m.r - 4, y: Y(p.target) - 6, "text-anchor": "end" }, svg);
+    tl.textContent = "target " + fmtD(p.target) + "×";
+    // current effort
+    el("line", { x1: X(d.raw_pairs_now), x2: X(d.raw_pairs_now), y1: m.t, y2: Y(0), stroke: "var(--fg-3)", "stroke-width": 1 }, plot);
+    var nl = el("text", { x: X(d.raw_pairs_now) + 5, y: m.t + 11 }, svg); nl.textContent = "sequenced now";
+    if (X(d.raw_pairs_now) > W - 100) { nl.setAttribute("x", X(d.raw_pairs_now) - 5); nl.setAttribute("text-anchor", "end"); }
+    // curve
+    if (curve.length && p.v !== "nodata") {
+      var dp = curve.map(function (q, i) { return (i ? "L" : "M") + X(q.raw_pairs).toFixed(1) + "," + Y(q.mean_depth).toFixed(1); }).join("");
+      el("path", { d: dp, fill: "none", stroke: "var(--fg)", "stroke-width": 2, "stroke-linejoin": "round" }, plot);
+    }
+    // needed marker
+    if ((p.v === "more" || p.v === "exhausted") && isFinite(p.need) && p.need > d.raw_pairs_now) {
+      el("line", { x1: X(p.need), x2: X(p.need), y1: Y(p.target), y2: Y(0), stroke: "var(--st-warn)", "stroke-width": 2 }, plot);
+      el("circle", { cx: X(p.need), cy: Y(p.target), r: 5, fill: "var(--st-warn)", stroke: "var(--surface)", "stroke-width": 2 }, plot);
+      var ml = el("text", { class: "lbl", x: X(p.need) + 8, y: Y(p.target) + 16 }, svg);
+      ml.textContent = fmtM(p.need) + " M pairs";
+      if (X(p.need) > W - 110) { ml.setAttribute("x", X(p.need) - 8); ml.setAttribute("text-anchor", "end"); }
+    }
+    // observed points
+    pts.forEach(function (q) {
+      el("circle", { cx: X(q.raw_pairs), cy: Y(q.mean_depth), r: 4.5, fill: "var(--accent)", stroke: "var(--surface)", "stroke-width": 2 }, plot);
+    });
+
+    // crosshair + tooltip over the curve
+    var tip = tipper(host);
+    var cross = el("line", { y1: m.t, y2: H - m.b, stroke: "var(--fg-3)", "stroke-width": 1, visibility: "hidden" }, svg);
+    var hit = el("rect", { x: m.l, y: m.t, width: W - m.l - m.r, height: H - m.t - m.b, fill: "transparent" }, svg);
+    var per = 2 * d.retention * d.mito_fraction;
+    hit.addEventListener("mousemove", function (ev) {
+      var b = host.getBoundingClientRect(), sx = (ev.clientX - b.left) * W / b.width;
+      var v = Math.pow(10, Math.log10(lo) + (sx - m.l) / (W - m.l - m.r) * (Math.log10(hi) - Math.log10(lo)));
+      var depth = p.v === "nodata" ? 0 : gpUnique(v * per, d.C, d.k) * d.depth_per_unique;
+      cross.setAttribute("x1", sx); cross.setAttribute("x2", sx); cross.setAttribute("visibility", "visible");
+      tip.show("<b>" + fmtM(v) + " M</b> raw read pairs<br>Expected depth " + fmtD(depth) + "×" +
+        (p.v !== "nodata" ? "<br>P(complete) ≈ " + Math.round(100 * pAtDepth(Math.max(depth, 1e-3))) + "%" : ""), ev.clientX - b.left, ev.clientY - b.top);
+    });
+    hit.addEventListener("mouseleave", function () { tip.hide(); cross.setAttribute("visibility", "hidden"); });
+  }
+  function niceTicks(max, n) {
+    var raw = max / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+    var step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * mag, t = [];
+    for (var v = 0; v <= max * 1.0001; v += step) t.push(+v.toPrecision(6));
+    return t;
+  }
+
+  // ---------- table ----------
+  var rows = [];
+  function buildRows(proj) {
+    rows = S.map(function (d, i) {
+      var p = proj[i];
+      return { d: d, p: p, sample: d.sample, outcome: { complete: 0, partial: 1, none: 2 }[d.outcome], nowM: d.raw_pairs_now,
+        mitoPct: d.mito_fraction, dupPct: isFinite(d.dup_rate) ? d.dup_rate : -1, depth: d.mean_depth, ceil: p.ceil,
+        addM: isFinite(p.add) ? p.add : 1e18, addG: isFinite(p.addG) ? p.addG : 1e18, fold: isFinite(p.fold) ? p.fold : 1e18,
+        vrank: VERDICT[p.v].rank * 1e20 + (isFinite(p.add) ? p.add : 0) };
+    });
+  }
+  function renderFilters(proj) {
+    var counts = { all: S.length };
+    proj.forEach(function (p) { counts[p.v] = (counts[p.v] || 0) + 1; });
+    var keys = ["all", "complete", "more", "exhausted", "failed", "nodata"];
+    document.getElementById("filters").innerHTML = keys.map(function (k) {
+      var label = k === "all" ? "All" : VERDICT[k].label;
+      return '<button type="button" class="chip" data-f="' + k + '" aria-pressed="' + (state.filter === k) + '">' + label + " (" + (counts[k] || 0) + ")</button>";
+    }).join("");
+  }
+  function renderTable() {
+    var k = state.sortK, dir = state.sortDir;
+    var list = rows.filter(function (r) { return state.filter === "all" || r.p.v === state.filter; });
+    list.sort(function (a, b) {
+      var x = a[k], y = b[k];
+      if (typeof x === "string") return dir * x.localeCompare(y);
+      return dir * (x - y);
+    });
+    document.querySelectorAll("#tbl thead th").forEach(function (th) {
+      th.setAttribute("aria-sort", th.dataset.k === k ? (dir > 0 ? "ascending" : "descending") : "none");
+    });
+    document.querySelector("#tbl tbody").innerHTML = list.map(function (r) {
+      var d = r.d, p = r.p;
+      var flag = d.ref_source === "reference" ? '<span class="flag">ref</span>' : (d.ref_source === "own_coi" ? '<span class="flag">' + ((d.coi_bp || 0) < CAL.min_coi_bp ? "short" : "coi") + "</span>" : "");
+      return '<tr tabindex="0" data-s="' + esc(d.sample) + '"' + (d.sample === state.sel ? ' class="sel"' : "") + ">" +
+        '<td class="l">' + esc(d.sample) + flag + "</td>" +
+        '<td class="l"><span class="pill"><span class="dot" style="background:' + OUTCOME[d.outcome].color + '"></span>' + OUTCOME[d.outcome].label + " " + d.genes_annotated + "/15</span></td>" +
+        '<td class="num">' + fmtM(d.raw_pairs_now) + "</td>" +
+        '<td class="num">' + fmtPct(d.mito_fraction, 3) + "</td>" +
+        '<td class="num">' + fmtPct(d.dup_rate, 0) + "</td>" +
+        '<td class="num">' + fmtD(d.mean_depth) + "</td>" +
+        '<td class="num">' + (p.v === "nodata" ? "—" : (d.saturated ? "" : "≥") + fmtD(p.ceil)) + "</td>" +
+        '<td class="num">' + (p.v === "more" ? fmtM(p.add) : p.v === "complete" ? "0" : "—") + "</td>" +
+        '<td class="num">' + (p.v === "more" ? fmtG(p.addG) : p.v === "complete" ? "0" : "—") + "</td>" +
+        '<td class="num">' + (p.v === "more" ? fmtFold(p.fold) : "—") + "</td>" +
+        '<td class="l">' + pill(p.v) + "</td></tr>";
+    }).join("");
+  }
+
+  // ---------- wiring ----------
+  var proj = [];
+  function recompute() {
+    var target = depthAtP(state.p);
+    proj = S.map(function (d) { return project(d, target); });
+    renderSummary(proj, target);
+    renderCal(target);
+    renderCeil(target);
+    buildRows(proj);
+    renderFilters(proj);
+    renderTable();
+    var i = S.findIndex(function (d) { return d.sample === state.sel; });
+    if (i >= 0) renderExplorer(S[i], proj[i]);
+  }
+  function select(sample, scroll) {
+    state.sel = sample;
+    document.getElementById("specimen").value = sample;
+    var i = S.findIndex(function (d) { return d.sample === sample; });
+    renderExplorer(S[i], proj[i]);
+    document.querySelectorAll("#tbl tbody tr").forEach(function (tr) { tr.classList.toggle("sel", tr.dataset.s === sample); });
+    if (scroll) document.getElementById("h-exp").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  var opt = document.getElementById("specimen");
+  S.slice().sort(function (a, b) { return a.sample.localeCompare(b.sample); }).forEach(function (d) {
+    var o = document.createElement("option"); o.value = d.sample; o.textContent = d.sample + " · " + OUTCOME[d.outcome].label.toLowerCase(); opt.appendChild(o);
+  });
+  opt.addEventListener("change", function () { select(opt.value, false); });
+  document.getElementById("targetP").addEventListener("change", function (e) {
+    state.p = +e.target.value;
+    try { localStorage.setItem("mitoPlannerP", String(state.p)); } catch (err) {}
+    recompute();
+  });
+  document.getElementById("filters").addEventListener("click", function (e) {
+    var b = e.target.closest(".chip"); if (!b) return;
+    state.filter = b.dataset.f;
+    document.querySelectorAll("#filters .chip").forEach(function (c) { c.setAttribute("aria-pressed", String(c === b)); });
+    renderTable();
+  });
+  document.querySelector("#tbl thead").addEventListener("click", function (e) {
+    var th = e.target.closest("th"); if (!th) return;
+    if (state.sortK === th.dataset.k) state.sortDir = -state.sortDir; else { state.sortK = th.dataset.k; state.sortDir = 1; }
+    renderTable();
+  });
+  document.querySelector("#tbl thead").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.target.click(); }
+  });
+  var tbody = document.querySelector("#tbl tbody");
+  tbody.addEventListener("click", function (e) { var tr = e.target.closest("tr"); if (tr) select(tr.dataset.s, true); });
+  tbody.addEventListener("keydown", function (e) { if (e.key === "Enter") { var tr = e.target.closest("tr"); if (tr) select(tr.dataset.s, true); } });
+
+  // Default specimen: the first "sequence more" case, which shows the whole story.
+  var target0 = depthAtP(state.p);
+  var firstMore = S.find(function (d) { return project(d, target0).v === "more" && d.ref_source !== "reference"; }) ||
+    S.find(function (d) { return project(d, target0).v === "exhausted" && d.ref_source !== "reference"; }) || S[0];
+  state.sel = firstMore.sample;
+  recompute();
+  select(state.sel, false);
+
+  var rt; window.addEventListener("resize", function () {
+    clearTimeout(rt); rt = setTimeout(function () {
+      renderCal(depthAtP(state.p));
+      renderCeil(depthAtP(state.p));
+      var i = S.findIndex(function (d) { return d.sample === state.sel; }); renderExplorer(S[i], proj[i]);
+    }, 150);
+  });
+})();
+</script>
