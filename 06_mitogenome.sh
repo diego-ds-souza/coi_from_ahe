@@ -90,11 +90,15 @@ process_sample() {
   # Output layout varies a little between MitoFinder releases. When more than
   # one contig matches the reference, MitoFinder numbers them
   # (*_mtDNA_contig_1.fasta, _2.fasta, ...) rather than writing a single
-  # unnumbered file, so collect all candidates and keep the largest as "the"
-  # mitogenome; smaller ones are usually NUMTs or unmerged fragments, and stay
-  # on disk under rundir for inspection rather than being silently discarded.
-  mapfile -t contig_candidates < <(find "$rundir" -name '*_mtDNA_contig_*.fasta' \
-    | grep -v '_genes_' | grep -v '_ref')
+  # unnumbered file (*_mtDNA_contig.fasta), so match both forms and keep the
+  # largest as "the" mitogenome; smaller ones are usually NUMTs or unmerged
+  # fragments, and stay on disk under rundir for inspection rather than being
+  # silently discarded. The search is confined to *_Final_Results because the
+  # _tmp directory holds reference copies with similar names
+  # (ref_for_mtDNA_contig.fasta, *_mtDNA_contig_ref.fasta).
+  mapfile -t contig_candidates < <(find "$rundir" -path '*_Final_Results/*' \
+      \( -name "${sample}_mtDNA_contig.fasta" -o -name "${sample}_mtDNA_contig_[0-9]*.fasta" \) \
+    | grep -v '_genes_')
   genes=$(find "$rundir" -name '*final_genes_NT.fasta' | sort | head -1)
 
   contig_len="NA"; n_genes="0"; cox1_len="NA"; ident="NA"
